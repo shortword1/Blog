@@ -1,34 +1,38 @@
 from flask import Flask, render_template, request, redirect, url_for
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///posts.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 
-posts = [
-    {
-        'author': 'John Doe',
-        'title': 'Blog Post 1',
-        'content': 'This is the content of the first post.',
-        'date_posted': 'April 20, 2024'
-    },
-    {
-        'author': 'Jane Doe',
-        'title': 'Blog Post 2',
-        'content': 'This is the content of the second post.',
-        'date_posted': 'April 21, 2024'
-    }
-]
+class Post(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    author = db.Column(db.String(50), nullable=False, default='Anonymous')
+    title = db.Column(db.String(100), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    date_posted = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"Post('{self.title}', '{self.date_posted}')"
+
+with app.app_context():
+    db.create_all()
 
 @app.route("/", methods=['GET', 'POST'])
 @app.route("/home", methods=['GET', 'POST'])
 def home():
     if request.method == 'POST':
-        new_post = {
-            'author': 'Anonymous',
-            'title': request.form['title'],
-            'content': request.form['content'],
-            'date_posted': 'May 14, 2024'
-        }
-        posts.append(new_post)
+        post_title = request.form['title']
+        post_content = request.form['content']
+        new_post = Post(title=post_title, content=post_content)
+
+        db.session.add(new_post)
+        db.session.commit()
         return redirect(url_for('home'))
+
+    posts = Post.query.order_by(Post.date_posted.desc()).all()
     return render_template('home.html', posts=posts)
 
 @app.route("/about")
